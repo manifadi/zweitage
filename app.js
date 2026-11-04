@@ -180,9 +180,74 @@ function start(DATA){
   });
   window.addEventListener('hashchange', route);
   route();
+
+  // When the app returns to the foreground, check quietly whether a newer issue exists
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    fetch('data/zwei-tage.json', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).then(d => {
+      if (d && d.issues && d.issues[0] && d.issues[0].id !== ISSUES[0].id) hardReload();
+    }).catch(() => {});
+  });
 }
 
-fetch('data/zwei-tage.json', {cache: 'no-cache'})
+fetch('data/zwei-tage.json', {cache: 'no-store'})
   .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
   .then(start)
   .catch(() => { document.getElementById('app').innerHTML = '<div class="wrap"><p class="meta" style="padding-top:40px">Die Ausgabe konnte nicht geladen werden. Bitte später erneut versuchen.</p></div>'; });
+
+/* ---------- full reload without caches ---------- */
+async function hardReload(){
+  try { if (window.caches) { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } } catch(e){}
+  try { if (navigator.serviceWorker) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister())); } } catch(e){}
+  location.replace(location.pathname + '?r=' + Date.now() + location.hash);
+}
+
+/* ---------- light / dark toggle ---------- */
+(function(){
+  const btn = document.getElementById('themeToggle'); if (!btn) return;
+  const root = document.documentElement;
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  const isDark = () => { const t = root.getAttribute('data-theme'); return t ? t === 'dark' : mq.matches; };
+  const sync = () => {
+    const d = isDark();
+    btn.setAttribute('aria-pressed', String(d));
+    btn.setAttribute('aria-label', d ? 'Helles Design einschalten' : 'Dunkles Design einschalten');
+    document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.setAttribute('content', d ? '#0e0c0b' : '#ffffff'); m.removeAttribute('media'); });
+  };
+  btn.addEventListener('click', () => {
+    const next = isDark() ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('zt-theme', next); } catch(e){}
+    sync();
+  });
+  mq.addEventListener && mq.addEventListener('change', sync);
+  sync();
+})();
+
+/* ---------- pull to refresh ---------- */
+(function(){
+  const ptr = document.getElementById('ptr'); if (!ptr) return;
+  const LIMIT = 80;
+  let startY = null, dist = 0, busy = false;
+  const show = d => { const p = Math.min(d / LIMIT, 1); ptr.style.opacity = String(p); ptr.style.transform = 'translateY(' + (Math.min(d, LIMIT + 20) - 60) + 'px) rotate(' + (p * 270) + 'deg)'; ptr.classList.toggle('ready', d >= LIMIT); };
+  const reset = () => { ptr.style.transition = 'transform .25s, opacity .25s'; ptr.style.opacity = '0'; ptr.style.transform = 'translateY(-80px)'; ptr.classList.remove('ready'); setTimeout(() => { ptr.style.transition = ''; }, 260); };
+  window.addEventListener('touchstart', e => {
+    if (busy || e.touches.length !== 1 || window.scrollY > 0) { startY = null; return; }
+    startY = e.touches[0].clientY; dist = 0;
+  }, {passive: true});
+  window.addEventListener('touchmove', e => {
+    if (startY === null) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy <= 0 || window.scrollY > 0) { dist = 0; show(0); return; }
+    dist = dy * 0.5; show(dist);
+  }, {passive: true});
+  window.addEventListener('touchend', () => {
+    if (startY === null) return;
+    startY = null;
+    if (dist >= LIMIT) {
+      busy = true; ptr.classList.add('loading'); ptr.style.opacity = '1'; ptr.style.transform = 'translateY(30px)';
+      hardReload();
+    } else reset();
+    dist = 0;
+  });
+})();

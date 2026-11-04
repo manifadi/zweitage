@@ -226,3 +226,16 @@ html{color-scheme:light}
 body{margin:0;padding-top:env(safe-area-inset-top,0px)}
 img{max-width:100%}
 [hidden]{display:none!important}
+
+/* Theme toggle icon: moon in light mode, sun in dark mode */
+#themeToggle .ic-sun{display:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #themeToggle .ic-sun{display:inline}:root:not([data-theme="light"]) #themeToggle .ic-moon{display:none}}
+:root[data-theme="dark"] #themeToggle .ic-sun{display:inline}
+:root[data-theme="dark"] #themeToggle .ic-moon{display:none}
+
+/* Pull to refresh */
+html{overscroll-behavior-y:contain}
+.ptr{position:fixed;z-index:90;left:50%;top:calc(10px + env(safe-area-inset-top,0px));width:42px;height:42px;margin-left:-21px;border-radius:50%;display:grid;place-items:center;background:var(--card);color:var(--accent);box-shadow:var(--shadow-lift);transform:translateY(-80px);opacity:0;pointer-events:none}
+.ptr.ready{background:var(--accent);color:#fff}
+.ptr.loading svg{animation:ptrspin .8s linear infinite}
+@keyframes ptrspin{to{transform:rotate(360deg)}}
