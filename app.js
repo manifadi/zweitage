@@ -66,7 +66,7 @@ function start(DATA){
   const utm = '?utm_source=zwei_tage&utm_medium=referral';
 
   /* ---------- pieces ---------- */
-  const src = a => '<div class="src"><i style="background:'+col(a.r)+'">'+esc(RUB[a.r].name.slice(0,2).toUpperCase())+'</i>'+esc(RUB[a.r].name)+'<span>· '+esc(a.kicker)+'</span></div>';
+  const src = a => '<div class="src"><span class="dot" style="background:'+col(a.r)+'" aria-hidden="true"></span>'+esc(RUB[a.r].name)+'<span>· '+esc(a.kicker)+'</span></div>';
   const card = a => '<a class="card" href="#'+a.id+'">'+media(a)+'<div class="body">'+src(a)+'<h3>'+esc(a.title)+'</h3><div class="card-meta"><span>Nr. '+a.issue.nr+' · '+shortDate(a.issue.id)+'</span><span>'+readMin(a)+' Min. Lesezeit</span></div></div></a>';
   const feature = a => '<a class="feature reveal" href="#'+a.id+'">'+media(a, true)+'<div class="over"><span class="badge">Top-Thema</span><h2>'+esc(a.title)+'</h2><p>'+esc(a.lead)+'</p><span class="over-meta">'+esc(RUB[a.r].name)+' · '+readMin(a)+' Min. Lesezeit</span></div></a>';
   const chipsHome = () => '<div class="chips" role="group" aria-label="Rubrik filtern"><button class="chip" type="button" data-f="alle" aria-pressed="'+(filter==='alle')+'">Alle</button>' + DATA.rubrics.map(r => '<button class="chip" type="button" data-f="'+r.key+'" aria-pressed="'+(filter===r.key)+'">'+esc(r.name)+'</button>').join('') + '</div>';
@@ -74,7 +74,7 @@ function start(DATA){
 
   function marketsHTML(is){
     const m = is.markets; if (!m) return '';
-    const row = x => { const inner = '<div class="mk-name">'+esc(x.name)+'<small>'+esc(x.sub)+'</small></div><span class="mk-chg '+x.dir+'">'+esc(x.chg)+'</span><div class="mk-note">'+esc(x.note)+'</div>';
+    const row = x => { const inner = '<div class="mk-name">'+esc(x.name)+'<small>'+esc(x.sub)+'</small></div><span class="mk-chg '+x.dir+(/\d/.test(x.chg)?'':' word')+'">'+esc(x.chg)+'</span><div class="mk-note">'+esc(x.note)+'</div>';
       return x.a ? '<a class="mk-row" href="#'+x.a+'">'+inner+'</a>' : '<div class="mk-row">'+inner+'</div>'; };
     return '<div class="markets reveal"><div class="mk-group">Aktien</div>'+m.stocks.map(row).join('')+'<div class="mk-group">ETFs</div>'+m.etfs.map(row).join('')+'<div class="mk-foot">'+esc(m.asof)+'</div></div>'
       + (m.take ? '<div class="take reveal" style="margin-top:16px"><h4>Einschätzung: Was als Nächstes passieren könnte</h4><p>'+esc(m.take)+'</p><p class="disc">Mutmaßung auf Basis der aktuellen Nachrichtenlage. Keine verlässliche Prognose, keine Anlageberatung.</p></div>' : '');
