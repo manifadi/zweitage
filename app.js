@@ -140,17 +140,10 @@ function start(DATA){
       + '</div></section></div>';
   }
 
-  /* ---------- facts: two-column stat tiles; long values, and short ones that would sit alone, span the full row ---------- */
+  /* ---------- facts: two-column fact table, both columns wrap ---------- */
   function factsBlock(facts){
-    const wide = facts.map(f => String(f[1]).length > 24);
-    let open = -1; // index of a short tile waiting for a partner in its row
-    facts.forEach((f, i) => {
-      if (wide[i]) { if (open >= 0) wide[open] = true; open = -1; }
-      else if (open >= 0) open = -1; else open = i;
-    });
-    if (open >= 0) wide[open] = true;
     return '<section class="facts" aria-label="In Zahlen"><h4>In Zahlen</h4><dl>'
-      + facts.map((f, i) => '<div class="fact'+(wide[i] ? ' wide' : '')+'"><dt>'+esc(f[0])+'</dt><dd>'+esc(f[1])+'</dd></div>').join('')
+      + facts.map(f => '<div class="fact"><dt>'+esc(f[0])+'</dt><dd>'+esc(f[1])+'</dd></div>').join('')
       + '</dl></section>';
   }
 
