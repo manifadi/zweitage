@@ -1,11 +1,19 @@
 {
+  "id": "/",
   "name": "Zwei Tage",
   "short_name": "Zwei Tage",
+  "description": "Das Nachrichtenmagazin alle zwei Tage: Österreich, Wirtschaft & Börse, USA, EU, Technologie & KI, Sport.",
   "lang": "de",
+  "dir": "ltr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#ff5b1f",
+  "categories": [
+    "news"
+  ],
   "icons": [
     {
       "src": "/icon.svg",
@@ -17,13 +25,25 @@
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

@@ -161,7 +161,14 @@ function start(DATA){
 
   function toast(msg){ const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role','status'); t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 1800); }
   function copyLink(){
-    const url = location.href;
+    // Clean URL without the ?r= cache-buster that hardReload adds
+    const url = location.origin + location.pathname + location.hash;
+    // In the installed app (no address bar) open the iOS share sheet instead of silently copying
+    const standalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    if (standalone && navigator.share) {
+      navigator.share({ title: document.title, url }).catch(() => {});
+      return;
+    }
     try { navigator.clipboard.writeText(url).then(() => toast('Link kopiert'), () => toast('Kopieren nicht möglich')); }
     catch(e){ toast('Kopieren nicht möglich'); }
   }
@@ -241,6 +248,7 @@ async function hardReload(){
     if (dy <= 0 || window.scrollY > 0) { dist = 0; show(0); return; }
     dist = dy * 0.5; show(dist);
   }, {passive: true});
+  window.addEventListener('touchcancel', () => { if (startY === null) return; startY = null; dist = 0; reset(); });
   window.addEventListener('touchend', () => {
     if (startY === null) return;
     startY = null;
