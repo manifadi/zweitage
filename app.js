@@ -122,7 +122,7 @@ function start(DATA){
       + '<div class="a-over"><div class="a-over-in"><h1>'+esc(a.title)+'</h1><span class="over-meta">'+esc(RUB[a.r].name)+' · '+esc(a.kicker)+' · '+readMin(a)+' Min. Lesezeit</span></div></div></div>'
       + '<div class="sheet wrap"><div class="sheet-in"><div class="byline"><span class="who">'+MARK+'Zwei Tage</span><time datetime="'+is.id+'">Nr. '+is.nr+' · '+shortDate(is.id)+'</time></div>'
       + '<p class="standfirst">'+esc(a.lead)+'</p><div class="prose">';
-    if (a.facts && a.facts.length) h += '<ul class="facts">'+a.facts.map(f => '<li><span>'+esc(f[0])+'</span><span>'+esc(f[1])+'</span></li>').join('')+'</ul>';
+    if (a.facts && a.facts.length) h += factsBlock(a.facts);
     h += a.body.map(p => '<p>'+esc(p)+'</p>').join('');
     if (a.take) h += '<div class="take" style="margin-top:24px"><h4>Einschätzung</h4><p>'+esc(a.take)+'</p><p class="disc">Mutmaßung über mögliche Entwicklungen, keine verlässliche Information und keine Anlageberatung.</p></div>';
     h += '</div>';
@@ -138,6 +138,20 @@ function start(DATA){
     return '<div class="wrap"><section class="rub-hero"><span class="hero-meta"><b>Archiv</b></span><h1 class="display" style="font-size:clamp(40px,8vw,88px)">Alle Ausgaben</h1></section><section class="blk" style="margin-top:28px"><div class="arch">'
       + ISSUES.map((is,i) => '<a href="#'+(i===0?'start':'ausgabe-'+is.id)+'"><span class="nr">Nr. '+String(is.nr).padStart(3,'0')+'</span><span class="ttl">'+esc(is.headline)+'<br><span class="meta">'+esc(is.dateLabel)+' · '+is.articles.length+' Berichte</span></span>'+ico.arrow+'</a>').join('')
       + '</div></section></div>';
+  }
+
+  /* ---------- facts: two-column stat tiles; long values, and short ones that would sit alone, span the full row ---------- */
+  function factsBlock(facts){
+    const wide = facts.map(f => String(f[1]).length > 24);
+    let open = -1; // index of a short tile waiting for a partner in its row
+    facts.forEach((f, i) => {
+      if (wide[i]) { if (open >= 0) wide[open] = true; open = -1; }
+      else if (open >= 0) open = -1; else open = i;
+    });
+    if (open >= 0) wide[open] = true;
+    return '<section class="facts" aria-label="In Zahlen"><h4>In Zahlen</h4><dl>'
+      + facts.map((f, i) => '<div class="fact'+(wide[i] ? ' wide' : '')+'"><dt>'+esc(f[0])+'</dt><dd>'+esc(f[1])+'</dd></div>').join('')
+      + '</dl></section>';
   }
 
   /* ---------- router ---------- */

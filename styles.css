@@ -185,10 +185,16 @@ a.mk-row:hover{background:var(--bg-soft)}
 .standfirst{font-size:clamp(18px,2.2vw,21px);line-height:1.5;color:var(--fg);font-weight:500;margin:22px 0}
 .prose{font-size:17.5px;line-height:1.72;color:var(--fg-2)}
 .prose p{margin:0 0 1.1em}
-.facts{list-style:none;padding:0;margin:0 0 1.6em;display:grid;border-radius:var(--r-md);background:var(--bg-soft);overflow:hidden}
-.facts li{padding:12px 18px;border-top:1px solid var(--line);font-size:15px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;color:var(--fg)}
-.facts li:first-child{border-top:0}
-.facts li span:last-child{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px;text-align:right}
+/* Facts: stat tiles — small label on top, large value below; long values span the full row */
+.facts{margin:0 0 1.8em;display:grid;gap:12px}
+.facts h4{margin:0;font-size:13px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--accent);display:flex;align-items:center;gap:8px}
+.facts h4::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.facts dl{margin:0;display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.fact{min-width:0;display:flex;flex-direction:column;gap:8px;padding:14px 16px 16px;border-radius:var(--r-md);background:var(--bg-soft)}
+.fact.wide{grid-column:1/-1}
+.fact dt{font-size:13px;line-height:1.35;color:var(--fg-3);font-weight:500;overflow-wrap:anywhere;hyphens:auto}
+.fact dd{margin:0;margin-top:auto;font-size:20px;line-height:1.25;font-weight:700;letter-spacing:-.01em;color:var(--fg);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;hyphens:auto}
+.fact.wide dd{font-size:18px}
 .sources{margin-top:32px;padding-top:20px;border-top:1px solid var(--line);display:grid;gap:10px}
 .sources h4{margin:0;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);font-weight:700}
 .sources a{font-size:15px;color:var(--fg-2);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
