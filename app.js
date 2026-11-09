@@ -1,3 +1,4 @@
+/* Zwei Tage – app shell with four tabs (Entdecken, Start, Ausgaben, Märkte) and an article reader that grows out of the tapped card */
 function start(DATA){
   const RUB = {}; DATA.rubrics.forEach(r => RUB[r.key] = r);
   const ISSUES = DATA.issues;
@@ -5,23 +6,29 @@ function start(DATA){
   ISSUES.forEach(is => is.articles.forEach(a => { a.issue = is; ALL.push(a); BY_ID[a.id] = a; }));
   const app = document.getElementById('app');
   const tabbar = document.getElementById('tabbar');
-  const FOCUS = ['oesterreich','wirtschaft','sport'];
+  const reader = document.getElementById('reader');
   const MONTHS = ['Jän.','Feb.','März','Apr.','Mai','Juni','Juli','Aug.','Sept.','Okt.','Nov.','Dez.'];
-  let filter = 'alle'; let curIssue = null;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const col = r => 'var(--c-' + r + ')';
   const shortDate = id => { const p = id.split('-'); return (+p[2]) + '. ' + MONTHS[+p[1]-1]; };
   const readMin = a => Math.max(2, Math.round((a.lead + ' ' + a.body.join(' ')).split(/\s+/).length / 200));
+  const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } };
+  const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
+  const svg = (p, extra) => '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"'+(extra||'')+'>'+p+'</svg>';
   const ico = {
-    arrow:'<svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
-    back:'<svg class="i" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
-    link:'<svg class="i" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>',
-    home:'<svg class="i" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H5.5A1.5 1.5 0 0 1 4 19z"/></svg>',
-    flag:'<svg class="i" viewBox="0 0 24 24"><path d="M5 21V4M5 4h12l-2 4 2 4H5"/></svg>',
-    chart:'<svg class="i" viewBox="0 0 24 24"><path d="M4 19h16M6 15l4-4 3 3 5-6"/><path d="M15 8h3v3"/></svg>',
-    ball:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5l4 2.9-1.5 4.7h-5L8 10.4z"/></svg>',
-    archive:'<svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/></svg>'
+    cards: svg('<rect x="6" y="3.5" width="12" height="17" rx="3"/><path d="M3.5 7v10M20.5 7v10"/>'),
+    home: svg('<path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H5.5A1.5 1.5 0 0 1 4 19z"/>'),
+    issues: svg('<rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/>'),
+    chart: svg('<path d="M4 19h16M6 15l4-4 3 3 5-6"/><path d="M15 8h3v3"/>'),
+    back: svg('<path d="M15 5l-7 7 7 7"/>'),
+    link: svg('<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/>'),
+    x: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+    later: svg('<path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4.5h4.5"/><path d="M12 8v4l3 2"/>'),
+    read: svg('<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/>'),
+    arrow: svg('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+    chev: svg('<path d="M9 5l7 7-7 7"/>')
   };
   const MARK = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="15" fill="var(--accent)"/><path d="M10 22.5 16.5 9.5M15.5 22.5l6.5-13" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>';
 
@@ -62,138 +69,347 @@ function start(DATA){
   }
   const hasPhoto = a => !!(a.img && a.img.ph);
   const imgUrl = (a, w) => 'https://images.unsplash.com/' + a.img.ph + '?ixlib=rb-4.1.0&auto=format&fit=crop&q=75&w=' + w;
-  const media = (a, big) => '<div class="media">' + (hasPhoto(a) ? '<img src="'+esc(imgUrl(a, big?1800:800))+'" srcset="'+esc(imgUrl(a,600))+' 600w, '+esc(imgUrl(a,1000))+' 1000w, '+esc(imgUrl(a,1800))+' 1800w" sizes="'+(big?'100vw':'(max-width:640px) 82vw, 340px')+'" alt="'+esc(a.img.alt||'')+'" '+(big?'fetchpriority="high"':'loading="lazy"')+' decoding="async">' : art(a)) + '</div>';
+  const SIZES = { hero: '100vw', card: '(max-width:640px) 92vw, 520px', rail: '260px', thumb: '96px' };
+  const media = (a, kind, eager) => '<div class="media">' + (hasPhoto(a)
+    ? '<img src="'+esc(imgUrl(a, kind==='thumb'?400:1000))+'" srcset="'+[200,400,800,1200,1800].map(w => esc(imgUrl(a,w))+' '+w+'w').join(', ')+'" sizes="'+SIZES[kind]+'" alt="'+esc(a.img.alt||'')+'" draggable="false" '+(eager?'fetchpriority="high"':'loading="lazy"')+' decoding="async">'
+    : art(a)) + '</div>';
   const utm = '?utm_source=zwei_tage&utm_medium=referral';
 
-  /* ---------- pieces ---------- */
-  const src = a => '<div class="src"><span class="dot" style="background:'+col(a.r)+'" aria-hidden="true"></span>'+esc(RUB[a.r].name)+'<span>· '+esc(a.kicker)+'</span></div>';
-  const card = a => '<a class="card" href="#'+a.id+'">'+media(a)+'<div class="body">'+src(a)+'<h3>'+esc(a.title)+'</h3><div class="card-meta"><span>Nr. '+a.issue.nr+' · '+shortDate(a.issue.id)+'</span><span>'+readMin(a)+' Min. Lesezeit</span></div></div></a>';
-  const feature = a => '<a class="feature reveal" href="#'+a.id+'">'+media(a, true)+'<div class="over"><span class="badge">Top-Thema</span><h2>'+esc(a.title)+'</h2><p>'+esc(a.lead)+'</p><span class="over-meta">'+esc(RUB[a.r].name)+' · '+readMin(a)+' Min. Lesezeit</span></div></a>';
-  const chipsHome = () => '<div class="chips" role="group" aria-label="Rubrik filtern"><button class="chip" type="button" data-f="alle" aria-pressed="'+(filter==='alle')+'">Alle</button>' + DATA.rubrics.map(r => '<button class="chip" type="button" data-f="'+r.key+'" aria-pressed="'+(filter===r.key)+'">'+esc(r.name)+'</button>').join('') + '</div>';
-  const chipsNav = active => '<nav class="chips" aria-label="Rubriken"><a class="chip" href="#start">Alle</a>' + DATA.rubrics.map(r => '<a class="chip" href="#'+r.key+'"'+(r.key===active?' aria-current="page"':'')+'>'+esc(r.name)+'</a>').join('') + '</nav>';
+  /* ---------- small pieces ---------- */
+  const rubLabel = a => '<span class="rub"><span class="dot" style="background:'+col(a.r)+'"></span>'+esc(RUB[a.r].name)+'</span>';
+  const metaText = a => 'Nr. '+a.issue.nr+' · '+shortDate(a.issue.id)+' · '+readMin(a)+' Min.';
+  const row = a => '<a class="row" href="#'+a.id+'" data-open="'+a.id+'"><div class="row-media">'+media(a,'thumb')+'</div><div class="row-body">'+rubLabel(a)+'<h3>'+esc(a.title)+'</h3><span class="meta">'+metaText(a)+'</span></div></a>';
+  const railCard = a => '<a class="rcard" href="#'+a.id+'" data-open="'+a.id+'"><div class="rcard-media">'+media(a,'rail')+'</div>'+rubLabel(a)+'<h3>'+esc(a.title)+'</h3><span class="meta">'+metaText(a)+'</span></a>';
+  const filterTabs = (scope, active) => '<div class="ftabs" role="tablist" aria-label="Rubrik filtern" data-scope="'+scope+'">'
+    + [['alle','Alle']].concat(DATA.rubrics.map(r => [r.key, r.name])).map(([k,n]) => '<button type="button" role="tab" class="ftab" data-f="'+k+'" aria-selected="'+(k===active)+'">'+esc(n)+'</button>').join('') + '</div>';
+  const filterList = (list, f) => f === 'alle' ? list : list.filter(a => a.r === f);
+  const listHTML = list => list.length ? '<div class="list">'+list.map(row).join('')+'</div>' : '<p class="empty">In dieser Rubrik gibt es hier keine Berichte.</p>';
+  const pageHead = (title, sub, back) => '<header class="page-head">'+(back ? '<a class="back-link" href="'+back+'">'+ico.back+'<span>Ausgaben</span></a>' : '')+'<h1>'+esc(title)+'</h1>'+(sub ? '<p class="page-sub">'+sub+'</p>' : '')+'</header>';
 
   function marketsHTML(is){
-    const m = is.markets; if (!m) return '';
-    const row = x => { const inner = '<div class="mk-name">'+esc(x.name)+'<small>'+esc(x.sub)+'</small></div><span class="mk-chg '+x.dir+(/\d/.test(x.chg)?'':' word')+'">'+esc(x.chg)+'</span><div class="mk-note">'+esc(x.note)+'</div>';
-      return x.a ? '<a class="mk-row" href="#'+x.a+'">'+inner+'</a>' : '<div class="mk-row">'+inner+'</div>'; };
-    return '<div class="markets reveal"><div class="mk-group">Aktien</div>'+m.stocks.map(row).join('')+'<div class="mk-group">ETFs</div>'+m.etfs.map(row).join('')+'<div class="mk-foot">'+esc(m.asof)+'</div></div>'
-      + (m.take ? '<div class="take reveal" style="margin-top:16px"><h4>Einschätzung: Was als Nächstes passieren könnte</h4><p>'+esc(m.take)+'</p><p class="disc">Mutmaßung auf Basis der aktuellen Nachrichtenlage. Keine verlässliche Prognose, keine Anlageberatung.</p></div>' : '');
+    const m = is.markets; if (!m) return '<p class="empty">Für diese Ausgabe gibt es keine Marktdaten.</p>';
+    const rowM = x => { const inner = '<div class="mk-name">'+esc(x.name)+'<small>'+esc(x.sub)+'</small></div><span class="mk-chg '+x.dir+(/\d/.test(x.chg)?'':' word')+'">'+esc(x.chg)+'</span><div class="mk-note">'+esc(x.note)+'</div>';
+      return x.a && BY_ID[x.a] ? '<a class="mk-row" href="#'+x.a+'" data-open="'+x.a+'">'+inner+'</a>' : '<div class="mk-row">'+inner+'</div>'; };
+    return '<div class="markets"><div class="mk-group">Aktien</div>'+m.stocks.map(rowM).join('')+'<div class="mk-group">ETFs</div>'+m.etfs.map(rowM).join('')+'<div class="mk-foot">'+esc(m.asof)+'</div></div>'
+      + (m.take ? '<div class="take"><h4>Einschätzung: Was als Nächstes passieren könnte</h4><p>'+esc(m.take)+'</p><p class="disc">Mutmaßung auf Basis der aktuellen Nachrichtenlage. Keine verlässliche Prognose, keine Anlageberatung.</p></div>' : '');
   }
-  const railFor = list => list.length ? '<div class="rail">'+list.map(card).join('')+'</div>' : '<p class="meta">In dieser Rubrik gibt es in dieser Ausgabe keine Berichte.</p>';
 
-  /* ---------- views ---------- */
+  function factsBlock(facts){
+    return '<section class="facts" aria-label="In Zahlen"><h4>In Zahlen</h4><dl>'
+      + facts.map(f => '<div class="fact"><dt>'+esc(f[0])+'</dt><dd>'+esc(f[1])+'</dd></div>').join('') + '</dl></section>';
+  }
+
+  /* ---------- tab 1: Entdecken (swipe deck) ---------- */
+  const DECK_KEY = 'zt-deck';
+  function freshDeck(issueId){
+    const is = ISSUES.find(i => i.id === issueId) || ISSUES[0];
+    const ids = is.articles.map(a => a.id).sort((x, y) => (y === is.top) - (x === is.top));
+    return { latest: ISSUES[0].id, issue: is.id, order: ids, hidden: [] };
+  }
+  let deck = null;
+  function loadDeck(){
+    let s = load(DECK_KEY, null);
+    if (!s || s.latest !== ISSUES[0].id || !ISSUES.some(i => i.id === s.issue) || !Array.isArray(s.order)) s = freshDeck(ISSUES[0].id);
+    s.order = s.order.filter(id => BY_ID[id]);
+    return s;
+  }
+  const saveDeck = () => save(DECK_KEY, deck);
+  function viewDeck(){
+    deck = loadDeck(); saveDeck();
+    return '<div class="page deck-page">'+pageHead('Entdecken', '<span id="deck-sub"></span>')
+      + '<div class="deck" id="deck" aria-live="polite"></div>'
+      + '<div class="deck-actions" id="deck-actions">'
+      + '<button type="button" class="dbtn nope" data-act="hide" aria-label="Ausblenden">'+ico.x+'</button>'
+      + '<button type="button" class="dbtn read" data-act="read" aria-label="Lesen">'+ico.read+'</button>'
+      + '<button type="button" class="dbtn like" data-act="later" aria-label="Später nochmal zeigen">'+ico.later+'</button>'
+      + '</div><p class="deck-hint">Nach rechts wischen: später nochmal · nach links: ausblenden</p></div>';
+  }
+  const deckCard = (a, depth) => '<article class="dcard" data-open="'+a.id+'" data-depth="'+depth+'" style="--d:'+depth+'"'+(depth ? ' aria-hidden="true"' : '')+'>'
+    + '<div class="dcard-media">'+media(a, 'card', depth === 0)+'</div>'
+    + '<div class="dcard-over">'+rubLabel(a)+'<h2>'+esc(a.title)+'</h2><p>'+esc(a.lead)+'</p><span class="meta">'+metaText(a)+' Lesezeit</span></div>'
+    + '<span class="stamp like">Später nochmal</span><span class="stamp nope">Ausblenden</span></article>';
+  function renderDeck(){
+    const el = document.getElementById('deck'); if (!el) return;
+    const is = ISSUES.find(i => i.id === deck.issue) || ISSUES[0];
+    const sub = document.getElementById('deck-sub');
+    const actions = document.getElementById('deck-actions');
+    if (!deck.order.length){
+      const idx = ISSUES.indexOf(is); const prev = ISSUES[idx + 1];
+      sub.textContent = 'Ausgabe Nr. '+is.nr+' · alles gesehen';
+      actions.hidden = true;
+      el.innerHTML = '<div class="deck-done"><div class="done-mark">'+MARK+'</div><h2>Du bist durch</h2><p>Alle Meldungen aus Ausgabe Nr. '+is.nr+' gesehen.</p>'
+        + (prev ? '<button type="button" class="pill-btn" data-act="prev">Ausgabe Nr. '+prev.nr+' durchwischen</button>' : '')
+        + '<button type="button" class="pill-btn ghost" data-act="reset">Von vorne beginnen</button></div>';
+      return;
+    }
+    actions.hidden = false;
+    sub.textContent = 'Ausgabe Nr. '+is.nr+' · noch '+deck.order.length+(deck.order.length === 1 ? ' Meldung' : ' Meldungen');
+    el.innerHTML = deck.order.slice(0, 3).map((id, i) => deckCard(BY_ID[id], i)).reverse().join('');
+    const top = el.querySelector('.dcard[data-depth="0"]');
+    if (top) bindDrag(top);
+  }
+  function decide(kind, card, dir){
+    if (!card || card.dataset.leaving) return;
+    card.dataset.leaving = '1';
+    const id = card.dataset.open;
+    card.style.transition = 'transform .32s cubic-bezier(.3,.6,.4,1), opacity .32s';
+    card.style.transform = 'translate('+(dir * window.innerWidth * 1.15)+'px, 30px) rotate('+(dir * 18)+'deg)';
+    card.style.opacity = '0';
+    deck.order = deck.order.filter(x => x !== id);
+    if (kind === 'later') deck.order.push(id); else deck.hidden.push(id);
+    saveDeck();
+    setTimeout(renderDeck, reduce ? 0 : 260);
+  }
+  function bindDrag(card){
+    const LIMIT = 100;
+    let sx = 0, sy = 0, dx = 0, dy = 0, pid = null, moved = false;
+    const setStamp = () => { const p = Math.max(-1, Math.min(1, dx / LIMIT)); card.style.setProperty('--like', Math.max(0, p)); card.style.setProperty('--nope', Math.max(0, -p)); };
+    const reset = () => { card.style.transition = ''; card.style.transform = ''; dx = dy = 0; setStamp(); };
+    card.addEventListener('pointerdown', e => {
+      if (e.button > 0 || card.dataset.leaving) return;
+      pid = e.pointerId; sx = e.clientX; sy = e.clientY; dx = dy = 0; moved = false;
+      card.style.transition = 'none';
+    });
+    card.addEventListener('pointermove', e => {
+      if (e.pointerId !== pid) return;
+      dx = e.clientX - sx; dy = e.clientY - sy;
+      if (!moved && Math.abs(dx) > 8){ moved = true; try { card.setPointerCapture(pid); } catch(err){} }
+      if (!moved) return;
+      card.style.transform = 'translate('+dx+'px,'+(dy * 0.25)+'px) rotate('+(dx / 20)+'deg)';
+      setStamp();
+    });
+    const end = e => {
+      if (e.pointerId !== pid) return;
+      pid = null;
+      if (!moved){ card.style.transition = ''; return; }
+      card.dataset.dragged = '1'; setTimeout(() => { delete card.dataset.dragged; }, 50);
+      if (dx > LIMIT) decide('later', card, 1);
+      else if (dx < -LIMIT) decide('hide', card, -1);
+      else reset();
+    };
+    card.addEventListener('pointerup', end);
+    card.addEventListener('pointercancel', e => { if (e.pointerId === pid){ pid = null; reset(); } });
+  }
+
+  /* ---------- tab 2: Start ---------- */
+  const filters = { start: 'alle', issue: 'alle', maerkte: 'alle' };
+  function viewStart(){
+    const is = ISSUES[0];
+    const top = BY_ID[is.top] || is.articles[0];
+    const rest = is.articles.filter(a => a !== top);
+    const recent = ISSUES.slice(0, 3).flatMap(i => i.articles);
+    return '<div class="start">'
+      + '<a class="lead-story" href="#'+top.id+'" data-open="'+top.id+'"><div class="lead-media">'+media(top, 'hero', true)+'</div>'
+      + '<div class="lead-over"><span class="glass-pill">News des Tages</span><h2>'+esc(top.title)+'</h2><span class="lead-more">Weiterlesen '+ico.arrow+'</span></div></a>'
+      + '<div class="page page-flat">'
+      + '<section class="sec"><div class="sec-head"><h2>Aktuell</h2><a class="sec-link" href="#ausgabe-'+is.id+'">Mehr</a></div><div class="rail">'+rest.map(railCard).join('')+'</div></section>'
+      + '<section class="sec"><div class="sec-head"><h2>Alle News</h2><span class="meta">Letzte 3 Ausgaben</span></div>'+filterTabs('start', filters.start)
+      + '<div class="flist" data-list="start">'+listHTML(filterList(recent, filters.start))+'</div></section>'
+      + '</div></div>';
+  }
+
+  /* ---------- tab 3: Ausgaben ---------- */
+  function viewIssues(){
+    const t = document.documentElement.getAttribute('data-theme') || 'system';
+    return '<div class="page">'+pageHead('Ausgaben', 'Alle zwei Tage eine neue Ausgabe')
+      + '<div class="issues">'+ISSUES.map(is => '<a class="issue" href="#ausgabe-'+is.id+'"><span class="nr">Nr. '+String(is.nr).padStart(3,'0')+'</span><span class="issue-body"><b>'+esc(is.headline)+'</b><span class="meta">'+esc(is.dateLabel)+' · '+is.articles.length+' Berichte</span></span>'+ico.chev+'</a>').join('')+'</div>'
+      + '<section class="sec"><div class="sec-head"><h2>Darstellung</h2></div><div class="seg" role="radiogroup" aria-label="Darstellung">'
+      + [['system','Automatisch'],['light','Hell'],['dark','Dunkel']].map(([k,n]) => '<button type="button" role="radio" data-theme-set="'+k+'" aria-checked="'+(k===t)+'">'+n+'</button>').join('')
+      + '</div></section>'
+      + '<footer class="about"><p><b>Zwei Tage</b> erscheint alle zwei Tage. Die Ausgaben werden automatisch aus öffentlich zugänglichen Quellen recherchiert und mit KI (Claude von Anthropic) zusammengefasst. Jede Meldung verlinkt ihre Quellen. Fotos sind Symbolbilder von Unsplash.</p><p>Markt-Einschätzungen sind Mutmaßungen über mögliche Szenarien, keine verlässlichen Prognosen und keine Anlageberatung.</p></footer>'
+      + '</div>';
+  }
   function viewIssue(is){
-    curIssue = is;
-    const top = BY_ID[is.top]; const latest = is === ISSUES[0];
-    const pool = is.articles.filter(a => a.id !== is.top);
-    const filtered = filter==='alle' ? pool : is.articles.filter(a => a.r===filter);
-    let h = '<div class="wrap"><section class="hero"><span class="hero-meta"><b>Ausgabe Nr. '+is.nr+'</b> · '+esc(is.dateLabel)+(latest?'':' · Archiv')+'</span><h1 class="display">'+esc(is.headline)+'</h1>'+chipsHome()+'</section>';
-    h += '<section class="blk" style="margin-top:28px"><div class="sec-head"><h2 class="h-sec">'+(filter==='alle'?'Diese Ausgabe':esc(RUB[filter].name))+'</h2>'+(filter==='alle'?'':'<a class="see-all" href="#'+filter+'">Alle ansehen</a>')+'</div><div id="railSlot">'+railFor(filtered)+'</div></section>';
-    if (top) h += '<section class="blk"><div class="sec-head"><h2 class="h-sec">Top-Thema</h2><a class="see-all" href="#'+top.id+'">Weiterlesen</a></div>'+feature(top)+'</section>';
-    h += '<section class="blk"><div class="brief reveal"><div class="sec-head" style="margin:0"><h2 class="h-sec">Das Wichtigste in 60 Sekunden</h2></div><ol>'
-      + is.brief.map(b => '<li><span class="dot" style="background:'+col(b.r)+'"></span><a href="#'+b.a+'">'+esc(b.t)+'</a></li>').join('') + '</ol></div></section>';
-    h += '<section class="blk"><div class="sec-head"><h2 class="h-sec">Märkte & Watchlist</h2><a class="see-all" href="#wirtschaft">Alle Berichte</a></div>'+marketsHTML(is)+'</section>';
-    FOCUS.forEach(k => { const list = is.articles.filter(a => a.r===k && a.id!==is.top);
-      if (list.length) h += '<section class="blk"><div class="sec-head"><h2 class="h-sec"><span class="dot" style="background:'+col(k)+';margin-right:10px;vertical-align:middle"></span>'+esc(RUB[k].name)+'</h2><a class="see-all" href="#'+k+'">Alle ansehen</a></div>'+railFor(list)+'</section>'; });
-    const more = is.articles.filter(a => ['usa','eu','tech'].includes(a.r) && a.id!==is.top);
-    if (more.length) h += '<section class="blk"><div class="sec-head"><h2 class="h-sec">USA, EU, Technologie & KI</h2></div>'+railFor(more)+'</section>';
-    h += '<section class="blk"><div class="sec-head"><h2 class="h-sec">Rubriken</h2><a class="see-all" href="#archiv">Alle Ausgaben</a></div><div class="tiles">'
-      + DATA.rubrics.map(r => '<a class="tile" href="#'+r.key+'"><span class="dot" style="background:'+col(r.key)+';width:12px;height:12px"></span><div style="display:grid;gap:4px"><b>'+esc(r.name)+'</b><span>'+ALL.filter(a=>a.r===r.key).length+' Berichte</span></div></a>').join('') + '</div></section></div>';
-    return h;
+    return '<div class="page">'+pageHead('Ausgabe Nr. '+is.nr, esc(is.dateLabel), '#ausgaben')
+      + '<p class="issue-headline">'+esc(is.headline)+'</p>'
+      + filterTabs('issue', filters.issue)
+      + '<div class="flist" data-list="issue" data-issue="'+is.id+'">'+listHTML(filterList(is.articles, filters.issue))+'</div></div>';
   }
 
-  function viewRubric(key){
-    const r = RUB[key]; const list = ALL.filter(a => a.r===key);
-    let h = '<div class="wrap"><section class="rub-hero"><span class="hero-meta"><b>Rubrik</b></span><h1 class="display" style="font-size:clamp(40px,8vw,88px)">'+esc(r.name)+'</h1><p class="lead">'+esc(r.desc)+'</p>'+chipsNav(key)+'</section>';
-    if (key==='wirtschaft') h += '<section class="blk"><div class="sec-head"><h2 class="h-sec">Watchlist</h2><span class="meta">Ausgabe Nr. '+ISSUES[0].nr+'</span></div>'+marketsHTML(ISSUES[0])+'</section>';
-    let last = null; let grid = [];
-    const flush = () => { if (grid.length){ h += '<div class="grid">'+grid.map(card).join('')+'</div>'; grid=[]; } };
-    list.forEach(a => { if (a.issue !== last){ flush(); h += '<div class="sec-head" style="margin-top:40px"><h2 class="h-sec">Ausgabe Nr. '+a.issue.nr+'</h2><span class="meta">'+esc(a.issue.dateLabel)+'</span></div>'; last = a.issue; } grid.push(a); });
-    flush();
-    if (!list.length) h += '<p class="meta" style="margin-top:32px">In dieser Rubrik gibt es noch keine Berichte.</p>';
-    return h + '</div>';
+  /* ---------- tab 4: Märkte ---------- */
+  function viewMarkets(){
+    const is = ISSUES[0];
+    const reports = ISSUES.slice(0, 3).flatMap(i => i.articles).filter(a => a.r === 'wirtschaft');
+    return '<div class="page">'+pageHead('Märkte', 'Watchlist · Ausgabe Nr. '+is.nr+' · '+esc(is.dateLabel))
+      + marketsHTML(is)
+      + '<section class="sec"><div class="sec-head"><h2>Berichte</h2><span class="meta">Wirtschaft & Börse</span></div>'+listHTML(reports)+'</section></div>';
   }
 
+  /* ---------- article (reader) ---------- */
   function viewArticle(a){
     const is = a.issue;
-    const back = is===ISSUES[0] ? 'start' : 'ausgabe-'+is.id;
     const credit = hasPhoto(a) ? '<p class="photo-note">Symbolfoto: <a href="https://unsplash.com/@'+esc(a.img.user)+utm+'" target="_blank" rel="noopener">'+esc(a.img.by)+'</a> (<a href="https://unsplash.com/photos/'+esc(a.img.id)+utm+'" target="_blank" rel="noopener">Originalfoto</a>) auf <a href="https://unsplash.com/'+utm+'" target="_blank" rel="noopener">Unsplash</a></p>' : '';
-    let h = '<article><div class="a-hero">'+media(a, true)+'<div class="a-top"><a class="glass-btn" href="#'+back+'" aria-label="Zurück zu Ausgabe Nr. '+is.nr+'">'+ico.back+'</a><button class="glass-btn" type="button" data-copy aria-label="Link kopieren">'+ico.link+'</button></div>'
-      + '<div class="a-over"><div class="a-over-in"><h1>'+esc(a.title)+'</h1><span class="over-meta">'+esc(RUB[a.r].name)+' · '+esc(a.kicker)+' · '+readMin(a)+' Min. Lesezeit</span></div></div></div>'
-      + '<div class="sheet wrap"><div class="sheet-in"><div class="byline"><span class="who">'+MARK+'Zwei Tage</span><time datetime="'+is.id+'">Nr. '+is.nr+' · '+shortDate(is.id)+'</time></div>'
+    let h = '<article><div class="a-hero">'+media(a, 'hero', true)+'<div class="a-top"><button class="glass-btn" type="button" data-back aria-label="Zurück">'+ico.back+'</button><button class="glass-btn" type="button" data-copy aria-label="Teilen">'+ico.link+'</button></div>'
+      + '<div class="a-over"><div class="a-over-in">'+rubLabel(a)+'<h1>'+esc(a.title)+'</h1><span class="over-meta">'+esc(a.kicker)+' · '+readMin(a)+' Min. Lesezeit</span></div></div></div>'
+      + '<div class="sheet"><div class="sheet-in"><div class="byline"><span class="who">'+MARK+'Zwei Tage</span><time datetime="'+is.id+'">Nr. '+is.nr+' · '+shortDate(is.id)+'</time></div>'
       + '<p class="standfirst">'+esc(a.lead)+'</p><div class="prose">';
     if (a.facts && a.facts.length) h += factsBlock(a.facts);
     h += a.body.map(p => '<p>'+esc(p)+'</p>').join('');
-    if (a.take) h += '<div class="take" style="margin-top:24px"><h4>Einschätzung</h4><p>'+esc(a.take)+'</p><p class="disc">Mutmaßung über mögliche Entwicklungen, keine verlässliche Information und keine Anlageberatung.</p></div>';
+    if (a.take) h += '<div class="take"><h4>Einschätzung</h4><p>'+esc(a.take)+'</p><p class="disc">Mutmaßung über mögliche Entwicklungen, keine verlässliche Information und keine Anlageberatung.</p></div>';
     h += '</div>';
     if (a.sources && a.sources.length) h += '<div class="sources"><h4>Quellen</h4>'+a.sources.map(s => '<a href="'+esc(s.u)+'" target="_blank" rel="noopener">'+esc(s.t)+'</a>').join('')+'</div>';
-    h += credit + '</div></div></article>';
-    const rel = ALL.filter(x => x.r===a.r && x.id!==a.id).slice(0,6);
-    const other = rel.length ? rel : is.articles.filter(x => x.id!==a.id).slice(0,6);
-    h += '<div class="wrap"><section class="blk"><div class="sec-head"><h2 class="h-sec">'+(rel.length?'Mehr aus '+esc(RUB[a.r].name):'Weiterlesen')+'</h2></div>'+railFor(other)+'</section></div>';
-    return h;
+    h += credit;
+    const rel = ALL.filter(x => x.r === a.r && x.id !== a.id).slice(0, 4);
+    if (rel.length) h += '<section class="sec"><div class="sec-head"><h2>Mehr aus '+esc(RUB[a.r].name)+'</h2></div>'+listHTML(rel)+'</section>';
+    return h + '</div></div></article>';
   }
 
-  function viewArchive(){
-    return '<div class="wrap"><section class="rub-hero"><span class="hero-meta"><b>Archiv</b></span><h1 class="display" style="font-size:clamp(40px,8vw,88px)">Alle Ausgaben</h1></section><section class="blk" style="margin-top:28px"><div class="arch">'
-      + ISSUES.map((is,i) => '<a href="#'+(i===0?'start':'ausgabe-'+is.id)+'"><span class="nr">Nr. '+String(is.nr).padStart(3,'0')+'</span><span class="ttl">'+esc(is.headline)+'<br><span class="meta">'+esc(is.dateLabel)+' · '+is.articles.length+' Berichte</span></span>'+ico.arrow+'</a>').join('')
-      + '</div></section></div>';
+  // Card-to-fullscreen transition: a copy of the tapped image flies to its new place, then the page fades in (and back on close)
+  function fly(fromEl, toEl, done){
+    const r1 = fromEl.getBoundingClientRect(), r2 = toEl.getBoundingClientRect();
+    const rad1 = getComputedStyle(fromEl).borderTopLeftRadius, rad2 = getComputedStyle(toEl).borderTopLeftRadius;
+    const g = fromEl.cloneNode(true);
+    g.className = 'ghost';
+    g.querySelectorAll('img').forEach(im => { if (im.currentSrc) im.src = im.currentSrc; im.removeAttribute('srcset'); im.removeAttribute('loading'); });
+    Object.assign(g.style, { left: r1.left+'px', top: r1.top+'px', width: r1.width+'px', height: r1.height+'px', borderRadius: rad1 });
+    document.body.appendChild(g);
+    g.getBoundingClientRect();
+    g.style.transition = 'left .42s var(--ease), top .42s var(--ease), width .42s var(--ease), height .42s var(--ease), border-radius .42s var(--ease)';
+    Object.assign(g.style, { left: r2.left+'px', top: r2.top+'px', width: r2.width+'px', height: r2.height+'px', borderRadius: rad2 });
+    let finished = false;
+    const finish = () => { if (finished) return; finished = true; done && done(); setTimeout(() => g.remove(), 160); g.style.transition = 'opacity .16s'; g.style.opacity = '0'; };
+    g.addEventListener('transitionend', e => { if (e.propertyName === 'width') finish(); });
+    setTimeout(finish, 600);
+  }
+  let readerOpen = false, readerArticle = null, openFrom = null, pendingFrom = null, navFromApp = false;
+  const visible = el => { if (!el || !el.isConnected) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight; };
+  function openReader(a){
+    const swap = readerOpen;
+    readerArticle = a;
+    reader.innerHTML = viewArticle(a);
+    reader.scrollTop = 0;
+    document.title = a.title + ' · Zwei Tage';
+    if (swap) return;
+    const from = pendingFrom; pendingFrom = null;
+    openFrom = from;
+    reader.hidden = false; readerOpen = true;
+    document.documentElement.classList.add('reading');
+    const hero = reader.querySelector('.a-hero .media');
+    if (from && hero && visible(from) && !reduce){
+      reader.classList.add('pre');
+      fly(from, hero, () => reader.classList.remove('pre'));
+    } else {
+      reader.classList.add('pre'); reader.getBoundingClientRect(); reader.classList.remove('pre');
+    }
+  }
+  function closeReader(){
+    if (!readerOpen) return;
+    readerOpen = false;
+    const hero = reader.querySelector('.a-hero .media');
+    const target = openFrom; openFrom = null;
+    if (target && hero && visible(target) && visible(hero) && !reduce) fly(hero, target);
+    reader.hidden = true; reader.innerHTML = ''; readerArticle = null;
+    document.documentElement.classList.remove('reading');
+    document.title = titleFor(viewKey);
   }
 
-  /* ---------- facts: two-column fact table, both columns wrap ---------- */
-  function factsBlock(facts){
-    return '<section class="facts" aria-label="In Zahlen"><h4>In Zahlen</h4><dl>'
-      + facts.map(f => '<div class="fact"><dt>'+esc(f[0])+'</dt><dd>'+esc(f[1])+'</dd></div>').join('')
-      + '</dl></section>';
-  }
-
-  /* ---------- router ---------- */
+  /* ---------- shell + router ---------- */
+  const TABS = [['entdecken','Entdecken',ico.cards],['start','Start',ico.home],['ausgaben','Ausgaben',ico.issues],['maerkte','Märkte',ico.chart]];
   function renderTabs(active){
-    const items = [['start','Start',ico.home],['oesterreich','Österreich',ico.flag],['wirtschaft','Märkte',ico.chart],['sport','Sport',ico.ball],['archiv','Archiv',ico.archive]];
-    tabbar.innerHTML = items.map(i => '<a class="tab" href="#'+i[0]+'" aria-label="'+i[1]+'"'+(i[0]===active?' aria-current="page"':'')+'>'+i[2]+'<span>'+i[1]+'</span></a>').join('');
+    tabbar.innerHTML = TABS.map(t => '<a class="tab" href="#'+t[0]+'"'+(t[0]===active?' aria-current="page"':'')+'>'+t[2]+'<span>'+t[1]+'</span></a>').join('');
+  }
+  const titleFor = key => key === 'start' ? 'Zwei Tage' : key === 'ausgaben' ? 'Ausgaben · Zwei Tage' : key === 'maerkte' ? 'Märkte · Zwei Tage' : key && key.indexOf('ausgabe-') === 0 ? 'Ausgabe · Zwei Tage' : 'Entdecken · Zwei Tage';
+  let viewKey = null;
+  function showView(key){
+    if (key === viewKey) return;
+    viewKey = key;
+    let html, tab = key;
+    if (key === 'start') html = viewStart();
+    else if (key === 'ausgaben') html = viewIssues();
+    else if (key === 'maerkte') html = viewMarkets();
+    else if (key.indexOf('ausgabe-') === 0){ const is = ISSUES.find(i => 'ausgabe-'+i.id === key); filters.issue = 'alle'; html = viewIssue(is); tab = 'ausgaben'; }
+    else { html = viewDeck(); tab = 'entdecken'; }
+    app.innerHTML = html;
+    document.body.dataset.view = tab;
+    renderTabs(tab);
+    if (tab === 'entdecken' && key === 'entdecken') renderDeck();
+    window.scrollTo(0, 0);
+    document.title = titleFor(key);
   }
   function route(){
-    const h = (location.hash || '').slice(1) || 'start';
-    let html, active = 'start', title = 'Zwei Tage', isArt = false;
-    if (h === 'start') html = viewIssue(ISSUES[0]);
-    else if (h.indexOf('ausgabe-') === 0){ const is = ISSUES.find(x => 'ausgabe-'+x.id === h); html = viewIssue(is || ISSUES[0]); active = 'archiv'; }
-    else if (RUB[h]) { html = viewRubric(h); active = h; title = RUB[h].name + ' · Zwei Tage'; }
-    else if (h === 'archiv') { html = viewArchive(); active = 'archiv'; }
-    else if (BY_ID[h]) { const a = BY_ID[h]; html = viewArticle(a); active = ['oesterreich','wirtschaft','sport'].includes(a.r) ? a.r : ''; title = a.title + ' · Zwei Tage'; isArt = true; }
-    else html = viewIssue(ISSUES[0]);
-    document.body.classList.toggle('is-article', isArt);
-    app.innerHTML = html; renderTabs(active); document.title = title;
-    window.scrollTo(0, 0);
+    let h = decodeURIComponent((location.hash || '').slice(1));
+    if (h === 'archiv') h = 'ausgaben';
+    if (h === 'wirtschaft') h = 'maerkte';
+    else if (RUB[h]){ filters.start = h; h = 'start'; }
+    if (BY_ID[h]){
+      if (!viewKey) showView('start');
+      openReader(BY_ID[h]);
+      return;
+    }
+    closeReader();
+    if (h.indexOf('ausgabe-') === 0 && ISSUES.some(i => 'ausgabe-'+i.id === h)) showView(h);
+    else if (TABS.some(t => t[0] === h)) showView(h);
+    else showView('entdecken');
   }
 
+  /* ---------- interactions ---------- */
+  document.addEventListener('click', e => {
+    const open = e.target.closest('[data-open]');
+    if (open && !e.target.closest('[data-act]')){
+      if (open.dataset.dragged) { e.preventDefault(); return; }
+      e.preventDefault();
+      pendingFrom = readerOpen ? null : (open.querySelector('.media') || null);
+      navFromApp = true;
+      location.hash = open.dataset.open;
+      return;
+    }
+    const act = e.target.closest('[data-act]');
+    if (act){
+      const top = document.querySelector('#deck .dcard[data-depth="0"]');
+      const a = act.dataset.act;
+      if (a === 'hide') decide('hide', top, -1);
+      else if (a === 'later') decide('later', top, 1);
+      else if (a === 'read' && top){ pendingFrom = top.querySelector('.media'); navFromApp = true; location.hash = top.dataset.open; }
+      else if (a === 'prev'){ const idx = ISSUES.findIndex(i => i.id === deck.issue); const prev = ISSUES[idx + 1]; if (prev){ deck = freshDeck(prev.id); saveDeck(); renderDeck(); } }
+      else if (a === 'reset'){ deck = freshDeck(deck.issue); saveDeck(); renderDeck(); }
+      return;
+    }
+    if (e.target.closest('[data-back]')){
+      if (navFromApp && history.length > 1){ navFromApp = false; history.back(); }
+      else location.hash = viewKey || 'entdecken';
+      return;
+    }
+    if (e.target.closest('[data-copy]')){ shareLink(); return; }
+    const ft = e.target.closest('.ftab');
+    if (ft){
+      const bar = ft.closest('.ftabs'); const scope = bar.dataset.scope; const f = ft.dataset.f;
+      filters[scope] = f;
+      bar.querySelectorAll('.ftab').forEach(b => b.setAttribute('aria-selected', String(b === ft)));
+      ft.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reduce ? 'auto' : 'smooth' });
+      const box = document.querySelector('.flist[data-list="'+scope+'"]');
+      if (box){
+        const src = scope === 'start' ? ISSUES.slice(0, 3).flatMap(i => i.articles) : (ISSUES.find(i => i.id === box.dataset.issue) || ISSUES[0]).articles;
+        box.innerHTML = listHTML(filterList(src, f));
+      }
+      return;
+    }
+    const th = e.target.closest('[data-theme-set]');
+    if (th){ setTheme(th.dataset.themeSet); document.querySelectorAll('[data-theme-set]').forEach(b => b.setAttribute('aria-checked', String(b === th))); }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && readerOpen){ document.querySelector('[data-back]')?.click(); return; }
+    if (viewKey === 'entdecken' && !readerOpen){
+      const top = document.querySelector('#deck .dcard[data-depth="0"]');
+      if (e.key === 'ArrowLeft') decide('hide', top, -1);
+      if (e.key === 'ArrowRight') decide('later', top, 1);
+    }
+  });
+
   function toast(msg){ const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role','status'); t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 1800); }
-  function copyLink(){
-    // Clean URL without the ?r= cache-buster that hardReload adds
+  function shareLink(){
     const url = location.origin + location.pathname + location.hash;
-    // In the installed app (no address bar) open the iOS share sheet instead of silently copying
-    const standalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-    if (standalone && navigator.share) {
+    if (navigator.share && (window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(pointer: coarse)').matches)){
       navigator.share({ title: document.title, url }).catch(() => {});
       return;
     }
     try { navigator.clipboard.writeText(url).then(() => toast('Link kopiert'), () => toast('Kopieren nicht möglich')); }
     catch(e){ toast('Kopieren nicht möglich'); }
   }
-  document.getElementById('copyLink').addEventListener('click', copyLink);
-  app.addEventListener('click', e => {
-    const c = e.target.closest('[data-copy]'); if (c){ copyLink(); return; }
-    const f = e.target.closest('.chip[data-f]'); if (!f) return;
-    filter = f.dataset.f;
-    app.querySelectorAll('.chip[data-f]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.f===filter)));
-    const is = curIssue || ISSUES[0]; const pool = is.articles.filter(a => a.id !== is.top);
-    const list = filter==='alle' ? pool : is.articles.filter(a => a.r===filter);
-    const slot = document.getElementById('railSlot'); if (!slot) return;
-    slot.innerHTML = railFor(list);
-    const head = slot.previousElementSibling;
-    head.innerHTML = '<h2 class="h-sec">'+(filter==='alle'?'Diese Ausgabe':esc(RUB[filter].name))+'</h2>'+(filter==='alle'?'':'<a class="see-all" href="#'+filter+'">Alle ansehen</a>');
-  });
+
   window.addEventListener('hashchange', route);
   route();
+
+  window.ZT = { isReading: () => readerOpen };
 
   // When the app returns to the foreground, check quietly whether a newer issue exists
   document.addEventListener('visibilitychange', () => {
@@ -207,7 +423,7 @@ function start(DATA){
 fetch('data/zwei-tage.json', {cache: 'no-store'})
   .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
   .then(start)
-  .catch(() => { document.getElementById('app').innerHTML = '<div class="wrap"><p class="meta" style="padding-top:40px">Die Ausgabe konnte nicht geladen werden. Bitte später erneut versuchen.</p></div>'; });
+  .catch(() => { document.getElementById('app').innerHTML = '<div class="page"><p class="empty">Die Ausgabe konnte nicht geladen werden. Bitte später erneut versuchen.</p></div>'; });
 
 /* ---------- full reload without caches ---------- */
 async function hardReload(){
@@ -216,27 +432,21 @@ async function hardReload(){
   location.replace(location.pathname + '?r=' + Date.now() + location.hash);
 }
 
-/* ---------- light / dark toggle ---------- */
-(function(){
-  const btn = document.getElementById('themeToggle'); if (!btn) return;
+/* ---------- light / dark (setting lives in the Ausgaben tab) ---------- */
+function syncThemeColor(){
   const root = document.documentElement;
-  const mq = window.matchMedia('(prefers-color-scheme: dark)');
-  const isDark = () => { const t = root.getAttribute('data-theme'); return t ? t === 'dark' : mq.matches; };
-  const sync = () => {
-    const d = isDark();
-    btn.setAttribute('aria-pressed', String(d));
-    btn.setAttribute('aria-label', d ? 'Helles Design einschalten' : 'Dunkles Design einschalten');
-    document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.setAttribute('content', d ? '#0e0c0b' : '#ffffff'); m.removeAttribute('media'); });
-  };
-  btn.addEventListener('click', () => {
-    const next = isDark() ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
-    try { localStorage.setItem('zt-theme', next); } catch(e){}
-    sync();
-  });
-  mq.addEventListener && mq.addEventListener('change', sync);
-  sync();
-})();
+  const t = root.getAttribute('data-theme');
+  const dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.setAttribute('content', dark ? '#0c0c0d' : '#ffffff'); m.removeAttribute('media'); });
+}
+function setTheme(t){
+  const root = document.documentElement;
+  if (t === 'dark' || t === 'light'){ root.setAttribute('data-theme', t); try { localStorage.setItem('zt-theme', t); } catch(e){} }
+  else { root.removeAttribute('data-theme'); try { localStorage.removeItem('zt-theme'); } catch(e){} }
+  syncThemeColor();
+}
+syncThemeColor();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', syncThemeColor);
 
 /* ---------- pull to refresh ---------- */
 (function(){
@@ -246,7 +456,8 @@ async function hardReload(){
   const show = d => { const p = Math.min(d / LIMIT, 1); ptr.style.opacity = String(p); ptr.style.transform = 'translateY(' + (Math.min(d, LIMIT + 20) - 60) + 'px) rotate(' + (p * 270) + 'deg)'; ptr.classList.toggle('ready', d >= LIMIT); };
   const reset = () => { ptr.style.transition = 'transform .25s, opacity .25s'; ptr.style.opacity = '0'; ptr.style.transform = 'translateY(-80px)'; ptr.classList.remove('ready'); setTimeout(() => { ptr.style.transition = ''; }, 260); };
   window.addEventListener('touchstart', e => {
-    if (busy || e.touches.length !== 1 || window.scrollY > 0) { startY = null; return; }
+    const reading = window.ZT && window.ZT.isReading();
+    if (busy || reading || e.touches.length !== 1 || window.scrollY > 0 || e.target.closest('.deck, .rail, .ftabs')) { startY = null; return; }
     startY = e.touches[0].clientY; dist = 0;
   }, {passive: true});
   window.addEventListener('touchmove', e => {
