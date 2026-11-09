@@ -283,18 +283,46 @@ function start(DATA){
   const dropGhost = g => { g.style.transition = 'opacity .26s var(--ease-out)'; g.style.opacity = '0'; setTimeout(() => g.remove(), 280); };
   let readerOpen = false, readerArticle = null, openFrom = null, pendingFrom = null, navFromApp = false, animTimer = null, finishClose = null;
   const visible = el => { if (!el || !el.isConnected) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight; };
-  function openReader(a){
-    if (finishClose) finishClose();
-    const swap = readerOpen;
+  // Preferred path: View Transitions API (Safari 18+, Chrome 111+). The tapped image and the article hero share
+  // one view-transition-name, so the browser morphs one into the other on the GPU; the white sheet, the backdrop and
+  // the title get their own names and choreographed keyframes (see ::view-transition rules in styles.css).
+  const VT = typeof document.startViewTransition === 'function' && !reduce;
+  // Deck cards morph as a whole (image, gradient and text), list and rail items morph via their image
+  const mediaOf = el => !el ? null : (el.classList.contains('media') || el.classList.contains('dcard')) ? el : el.querySelector('.media');
+  function useCachedImage(fromMedia){
+    const src = fromMedia && fromMedia.querySelector('img');
+    const hi = reader.querySelector('.a-hero .media img');
+    if (!src || !hi || !src.currentSrc) return Promise.resolve();
+    hi.removeAttribute('srcset'); hi.removeAttribute('loading'); hi.src = src.currentSrc;
+    return hi.decode ? hi.decode().catch(() => {}) : Promise.resolve();
+  }
+  function mountReader(a){
     readerArticle = a;
-    reader.innerHTML = viewArticle(a);
+    reader.innerHTML = '<div class="reader-bg" aria-hidden="true"></div>' + viewArticle(a);
     reader.scrollTop = 0;
     document.title = a.title + ' · Zwei Tage';
-    if (swap) return;
+  }
+  function openReader(a){
+    if (finishClose) finishClose();
+    if (readerOpen){ mountReader(a); return; }
     const from = pendingFrom; pendingFrom = null;
-    openFrom = from;
-    reader.hidden = false; readerOpen = true;
-    document.documentElement.classList.add('reading');
+    const fromMedia = mediaOf(from);
+    openFrom = fromMedia;
+    const show = () => { reader.hidden = false; readerOpen = true; reader.classList.add('vt'); document.documentElement.classList.add('reading'); };
+    if (VT && fromMedia && visible(fromMedia)){
+      fromMedia.style.viewTransitionName = 'hero-media';
+      const t = document.startViewTransition(async () => {
+        fromMedia.style.viewTransitionName = '';
+        mountReader(a); show();
+        await useCachedImage(fromMedia);
+      });
+      t.finished.finally(() => { fromMedia.style.viewTransitionName = ''; });
+      return;
+    }
+    mountReader(a);
+    if (VT){ document.startViewTransition(show); return; }
+    // Fallback for browsers without View Transitions: ghost image + sliding sheet
+    show();
     const hero = reader.querySelector('.a-hero .media');
     if (from && hero && visible(from) && !reduce){
       reader.classList.add('opening');
@@ -313,13 +341,22 @@ function start(DATA){
     readerOpen = false;
     const hero = reader.querySelector('.a-hero .media');
     const target = openFrom; openFrom = null; readerArticle = null;
+    document.title = titleFor(viewKey);
     const done = () => {
       finishClose = null; clearTimeout(animTimer);
-      reader.hidden = true; reader.innerHTML = ''; reader.classList.remove('closing', 'run', 'fading');
+      reader.hidden = true; reader.innerHTML = ''; reader.classList.remove('vt', 'closing', 'run', 'fading');
       document.documentElement.classList.remove('reading');
     };
-    document.title = titleFor(viewKey);
-    if (target && hero && visible(target) && !reduce){
+    if (VT){
+      const morph = target && target.isConnected && visible(target);
+      const t = document.startViewTransition(() => {
+        done();
+        if (morph) target.style.viewTransitionName = 'hero-media';
+      });
+      t.finished.finally(() => { if (target) target.style.viewTransitionName = ''; });
+      return;
+    }
+    if (target && hero && visible(target) && visible(hero) && !reduce){
       const g = ghostOf(hero);
       reader.classList.add('closing');
       reader.getBoundingClientRect();
