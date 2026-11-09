@@ -128,7 +128,7 @@ function start(DATA){
     + '<div class="dcard-media">'+media(a, 'card', depth === 0)+'</div>'
     + '<div class="dcard-over">'+rubLabel(a)+'<h2>'+esc(a.title)+'</h2><p>'+esc(a.lead)+'</p><span class="meta">'+metaText(a)+' Lesezeit</span></div>'
     + '<span class="stamp like">Später nochmal</span><span class="stamp nope">Ausblenden</span></article>';
-  function renderDeck(){
+  function renderDeck(shift){
     const el = document.getElementById('deck'); if (!el) return;
     const is = ISSUES.find(i => i.id === deck.issue) || ISSUES[0];
     const sub = document.getElementById('deck-sub');
@@ -145,6 +145,12 @@ function start(DATA){
     actions.hidden = false;
     sub.textContent = 'Ausgabe Nr. '+is.nr+' · noch '+deck.order.length+(deck.order.length === 1 ? ' Meldung' : ' Meldungen');
     el.innerHTML = deck.order.slice(0, 3).map((id, i) => deckCard(BY_ID[id], i)).reverse().join('');
+    if (shift && !reduce){
+      const cards = el.querySelectorAll('.dcard');
+      cards.forEach(c => { c.style.transition = 'none'; c.style.setProperty('--d', +c.dataset.depth + 1); });
+      el.getBoundingClientRect();
+      requestAnimationFrame(() => cards.forEach(c => { c.style.transition = ''; c.style.setProperty('--d', c.dataset.depth); }));
+    }
     const top = el.querySelector('.dcard[data-depth="0"]');
     if (top) bindDrag(top);
   }
@@ -152,13 +158,13 @@ function start(DATA){
     if (!card || card.dataset.leaving) return;
     card.dataset.leaving = '1';
     const id = card.dataset.open;
-    card.style.transition = 'transform .32s cubic-bezier(.3,.6,.4,1), opacity .32s';
+    card.style.transition = 'transform .45s var(--ease), opacity .45s var(--ease)';
     card.style.transform = 'translate('+(dir * window.innerWidth * 1.15)+'px, 30px) rotate('+(dir * 18)+'deg)';
     card.style.opacity = '0';
     deck.order = deck.order.filter(x => x !== id);
     if (kind === 'later') deck.order.push(id); else deck.hidden.push(id);
     saveDeck();
-    setTimeout(renderDeck, reduce ? 0 : 260);
+    setTimeout(() => renderDeck(true), reduce ? 0 : 200);
   }
   function bindDrag(card){
     const LIMIT = 100;
@@ -254,26 +260,31 @@ function start(DATA){
     return h + '</div></div></article>';
   }
 
-  // Card-to-fullscreen transition: a copy of the tapped image flies to its new place, then the page fades in (and back on close)
-  function fly(fromEl, toEl, done){
-    const r1 = fromEl.getBoundingClientRect(), r2 = toEl.getBoundingClientRect();
-    const rad1 = getComputedStyle(fromEl).borderTopLeftRadius, rad2 = getComputedStyle(toEl).borderTopLeftRadius;
-    const g = fromEl.cloneNode(true);
+  // Card-to-fullscreen transition: the tapped image grows into the article hero while the white sheet with the text
+  // glides up from below; closing runs the same motion backwards (sheet glides down, image shrinks into its card).
+  const DUR = 560;
+  function ghostOf(el){
+    const r = el.getBoundingClientRect();
+    const g = el.cloneNode(true);
     g.className = 'ghost';
+    g.removeAttribute('style'); g.querySelectorAll('.stamp').forEach(x => x.remove());
     g.querySelectorAll('img').forEach(im => { if (im.currentSrc) im.src = im.currentSrc; im.removeAttribute('srcset'); im.removeAttribute('loading'); });
-    Object.assign(g.style, { left: r1.left+'px', top: r1.top+'px', width: r1.width+'px', height: r1.height+'px', borderRadius: rad1 });
+    Object.assign(g.style, { left: r.left+'px', top: r.top+'px', width: r.width+'px', height: r.height+'px', borderRadius: getComputedStyle(el).borderTopLeftRadius });
     document.body.appendChild(g);
-    g.getBoundingClientRect();
-    g.style.transition = 'left .42s var(--ease), top .42s var(--ease), width .42s var(--ease), height .42s var(--ease), border-radius .42s var(--ease)';
-    Object.assign(g.style, { left: r2.left+'px', top: r2.top+'px', width: r2.width+'px', height: r2.height+'px', borderRadius: rad2 });
-    let finished = false;
-    const finish = () => { if (finished) return; finished = true; done && done(); setTimeout(() => g.remove(), 160); g.style.transition = 'opacity .16s'; g.style.opacity = '0'; };
-    g.addEventListener('transitionend', e => { if (e.propertyName === 'width') finish(); });
-    setTimeout(finish, 600);
+    return g;
   }
-  let readerOpen = false, readerArticle = null, openFrom = null, pendingFrom = null, navFromApp = false;
+  function moveGhost(g, el){
+    const r = el.getBoundingClientRect();
+    const t = DUR+'ms var(--ease)';
+    g.style.transition = ['left','top','width','height','border-radius'].map(p => p+' '+t).join(', ');
+    g.classList.add('run');
+    Object.assign(g.style, { left: r.left+'px', top: r.top+'px', width: r.width+'px', height: r.height+'px', borderRadius: getComputedStyle(el).borderTopLeftRadius });
+  }
+  const dropGhost = g => { g.style.transition = 'opacity .26s var(--ease-out)'; g.style.opacity = '0'; setTimeout(() => g.remove(), 280); };
+  let readerOpen = false, readerArticle = null, openFrom = null, pendingFrom = null, navFromApp = false, animTimer = null, finishClose = null;
   const visible = el => { if (!el || !el.isConnected) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight; };
   function openReader(a){
+    if (finishClose) finishClose();
     const swap = readerOpen;
     readerArticle = a;
     reader.innerHTML = viewArticle(a);
@@ -286,21 +297,42 @@ function start(DATA){
     document.documentElement.classList.add('reading');
     const hero = reader.querySelector('.a-hero .media');
     if (from && hero && visible(from) && !reduce){
-      reader.classList.add('pre');
-      fly(from, hero, () => reader.classList.remove('pre'));
+      reader.classList.add('opening');
+      const g = ghostOf(from);
+      reader.getBoundingClientRect();
+      requestAnimationFrame(() => { moveGhost(g, hero); reader.classList.add('run'); });
+      clearTimeout(animTimer);
+      animTimer = setTimeout(() => { reader.classList.remove('opening', 'run'); dropGhost(g); }, DUR + 20);
     } else {
-      reader.classList.add('pre'); reader.getBoundingClientRect(); reader.classList.remove('pre');
+      reader.classList.add('fading'); reader.getBoundingClientRect();
+      requestAnimationFrame(() => reader.classList.remove('fading'));
     }
   }
   function closeReader(){
     if (!readerOpen) return;
     readerOpen = false;
     const hero = reader.querySelector('.a-hero .media');
-    const target = openFrom; openFrom = null;
-    if (target && hero && visible(target) && visible(hero) && !reduce) fly(hero, target);
-    reader.hidden = true; reader.innerHTML = ''; readerArticle = null;
-    document.documentElement.classList.remove('reading');
+    const target = openFrom; openFrom = null; readerArticle = null;
+    const done = () => {
+      finishClose = null; clearTimeout(animTimer);
+      reader.hidden = true; reader.innerHTML = ''; reader.classList.remove('closing', 'run', 'fading');
+      document.documentElement.classList.remove('reading');
+    };
     document.title = titleFor(viewKey);
+    if (target && hero && visible(target) && !reduce){
+      const g = ghostOf(hero);
+      reader.classList.add('closing');
+      reader.getBoundingClientRect();
+      requestAnimationFrame(() => { moveGhost(g, target); reader.classList.add('run'); });
+      finishClose = () => { done(); dropGhost(g); };
+      clearTimeout(animTimer);
+      animTimer = setTimeout(() => finishClose && finishClose(), DUR + 20);
+    } else if (!reduce){
+      reader.classList.add('fading');
+      finishClose = done;
+      clearTimeout(animTimer);
+      animTimer = setTimeout(() => finishClose && finishClose(), 260);
+    } else done();
   }
 
   /* ---------- shell + router ---------- */
@@ -320,6 +352,7 @@ function start(DATA){
     else if (key.indexOf('ausgabe-') === 0){ const is = ISSUES.find(i => 'ausgabe-'+i.id === key); filters.issue = 'alle'; html = viewIssue(is); tab = 'ausgaben'; }
     else { html = viewDeck(); tab = 'entdecken'; }
     app.innerHTML = html;
+    if (!reduce){ app.classList.remove('enter'); app.getBoundingClientRect(); app.classList.add('enter'); }
     document.body.dataset.view = tab;
     renderTabs(tab);
     if (tab === 'entdecken' && key === 'entdecken') renderDeck();
@@ -348,7 +381,7 @@ function start(DATA){
     if (open && !e.target.closest('[data-act]')){
       if (open.dataset.dragged) { e.preventDefault(); return; }
       e.preventDefault();
-      pendingFrom = readerOpen ? null : (open.querySelector('.media') || null);
+      pendingFrom = readerOpen ? null : (open.classList.contains('dcard') ? open : (open.querySelector('.media') || null));
       navFromApp = true;
       location.hash = open.dataset.open;
       return;
@@ -359,7 +392,7 @@ function start(DATA){
       const a = act.dataset.act;
       if (a === 'hide') decide('hide', top, -1);
       else if (a === 'later') decide('later', top, 1);
-      else if (a === 'read' && top){ pendingFrom = top.querySelector('.media'); navFromApp = true; location.hash = top.dataset.open; }
+      else if (a === 'read' && top){ pendingFrom = top; navFromApp = true; location.hash = top.dataset.open; }
       else if (a === 'prev'){ const idx = ISSUES.findIndex(i => i.id === deck.issue); const prev = ISSUES[idx + 1]; if (prev){ deck = freshDeck(prev.id); saveDeck(); renderDeck(); } }
       else if (a === 'reset'){ deck = freshDeck(deck.issue); saveDeck(); renderDeck(); }
       return;
@@ -380,6 +413,7 @@ function start(DATA){
       if (box){
         const src = scope === 'start' ? ISSUES.slice(0, 3).flatMap(i => i.articles) : (ISSUES.find(i => i.id === box.dataset.issue) || ISSUES[0]).articles;
         box.innerHTML = listHTML(filterList(src, f));
+        if (!reduce){ box.classList.remove('enter'); box.getBoundingClientRect(); box.classList.add('enter'); }
       }
       return;
     }
