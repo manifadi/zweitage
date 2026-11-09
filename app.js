@@ -373,9 +373,17 @@ function start(DATA){
   }
 
   /* ---------- shell + router ---------- */
-  const TABS = [['entdecken','Entdecken',ico.cards],['start','Start',ico.home],['ausgaben','Ausgaben',ico.issues],['maerkte','Märkte',ico.chart]];
+  const TABS = [['start','Start',ico.home],['entdecken','Entdecken',ico.cards],['maerkte','Märkte',ico.chart],['ausgaben','Ausgaben',ico.issues]];
+  // The bar is built once; switching tabs only moves the indicator (springy transform) and swaps aria-current
   function renderTabs(active){
-    tabbar.innerHTML = TABS.map(t => '<a class="tab" href="#'+t[0]+'"'+(t[0]===active?' aria-current="page"':'')+'>'+t[2]+'<span>'+t[1]+'</span></a>').join('');
+    if (!tabbar.dataset.ready){
+      tabbar.innerHTML = '<span class="tab-ind" aria-hidden="true"></span>' + TABS.map(t => '<a class="tab" data-tab="'+t[0]+'" href="#'+t[0]+'">'+t[2]+'<span>'+t[1]+'</span></a>').join('');
+      tabbar.dataset.ready = '1';
+      requestAnimationFrame(() => requestAnimationFrame(() => tabbar.classList.add('live')));
+    }
+    const i = Math.max(0, TABS.findIndex(t => t[0] === active));
+    tabbar.style.setProperty('--i', i);
+    tabbar.querySelectorAll('.tab').forEach((el, k) => { if (k === i) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current'); });
   }
   const titleFor = key => key === 'start' ? 'Zwei Tage' : key === 'ausgaben' ? 'Ausgaben · Zwei Tage' : key === 'maerkte' ? 'Märkte · Zwei Tage' : key && key.indexOf('ausgabe-') === 0 ? 'Ausgabe · Zwei Tage' : 'Entdecken · Zwei Tage';
   let viewKey = null;
@@ -387,7 +395,8 @@ function start(DATA){
     else if (key === 'ausgaben') html = viewIssues();
     else if (key === 'maerkte') html = viewMarkets();
     else if (key.indexOf('ausgabe-') === 0){ const is = ISSUES.find(i => 'ausgabe-'+i.id === key); filters.issue = 'alle'; html = viewIssue(is); tab = 'ausgaben'; }
-    else { html = viewDeck(); tab = 'entdecken'; }
+    else if (key === 'entdecken'){ html = viewDeck(); tab = 'entdecken'; }
+    else { html = viewStart(); key = viewKey = 'start'; tab = 'start'; }
     app.innerHTML = html;
     if (!reduce){ app.classList.remove('enter'); app.getBoundingClientRect(); app.classList.add('enter'); }
     document.body.dataset.view = tab;
@@ -409,7 +418,7 @@ function start(DATA){
     closeReader();
     if (h.indexOf('ausgabe-') === 0 && ISSUES.some(i => 'ausgabe-'+i.id === h)) showView(h);
     else if (TABS.some(t => t[0] === h)) showView(h);
-    else showView('entdecken');
+    else showView('start');
   }
 
   /* ---------- interactions ---------- */
@@ -436,7 +445,7 @@ function start(DATA){
     }
     if (e.target.closest('[data-back]')){
       if (navFromApp && history.length > 1){ navFromApp = false; history.back(); }
-      else location.hash = viewKey || 'entdecken';
+      else location.hash = viewKey || 'start';
       return;
     }
     if (e.target.closest('[data-copy]')){ shareLink(); return; }

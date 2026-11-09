@@ -280,12 +280,19 @@ a.mk-row:hover{background:var(--bg-soft)}
 .fact dd{margin:0;font-size:16px;line-height:1.4;font-weight:700;color:var(--fg);font-variant-numeric:tabular-nums;overflow-wrap:break-word}
 
 /* ---------- Tab bar: floating glass pill, icon above label ---------- */
-.tabbar{position:fixed;z-index:70;left:50%;transform:translateX(-50%);bottom:calc(10px + var(--safe-bottom));width:min(520px,calc(100% - 24px));display:grid;grid-template-columns:repeat(4,1fr);gap:2px;padding:6px;border-radius:999px;
-  background:var(--glass);backdrop-filter:saturate(180%) blur(22px);-webkit-backdrop-filter:saturate(180%) blur(22px);box-shadow:var(--shadow-lift),inset 0 0 0 1px var(--glass-line)}
-.tab{height:58px;border-radius:999px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--fg);font-size:12px;font-weight:600;transition:background-color .3s var(--ease),color .3s var(--ease),transform .2s var(--ease)}
-.tab:active{transform:scale(.95)}
+.tabbar{position:fixed;z-index:70;left:50%;transform:translateX(-50%);bottom:calc(10px + var(--safe-bottom));width:min(520px,calc(100% - 24px));display:grid;grid-template-columns:repeat(4,1fr);padding:6px;border-radius:999px;
+  background:var(--glass);backdrop-filter:saturate(180%) blur(22px);-webkit-backdrop-filter:saturate(180%) blur(22px);box-shadow:var(--shadow-lift),inset 0 0 0 1px var(--glass-line);--i:0}
+/* Sliding indicator with a spring (slight overshoot), plus a small squash while it travels */
+.tab-ind{position:absolute;top:6px;bottom:6px;left:6px;width:calc((100% - 12px) / 4);border-radius:999px;background:color-mix(in srgb,var(--fg) 8%,transparent);
+  transform:translateX(calc(var(--i) * 100%));pointer-events:none}
+.tabbar.live .tab-ind{transition:transform .62s cubic-bezier(.34,1.42,.5,1)}
+.tab{position:relative;z-index:1;height:58px;border-radius:999px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--fg);font-size:12px;font-weight:600;
+  transition:color .35s var(--ease-out),transform .45s cubic-bezier(.34,1.56,.64,1);-webkit-tap-highlight-color:transparent}
+.tab:active{transform:scale(.9);transition-duration:.12s}
 .tab svg.i{width:24px;height:24px}
-.tab[aria-current="page"]{color:var(--accent);background:color-mix(in srgb,var(--fg) 7%,transparent)}
+.tab[aria-current="page"]{color:var(--accent)}
+.tabbar.live .tab[aria-current="page"] svg.i{animation:tabPop .55s cubic-bezier(.34,1.56,.64,1)}
+@keyframes tabPop{0%{transform:scale(1)}35%{transform:scale(.82) translateY(1px)}70%{transform:scale(1.12) translateY(-1px)}100%{transform:none}}
 
 /* Misc */
 .toast{position:fixed;z-index:120;left:50%;transform:translateX(-50%);top:calc(16px + var(--safe-top));background:var(--fg);color:var(--bg);padding:12px 16px;border-radius:999px;font-size:14px;font-weight:600;box-shadow:var(--shadow-lift)}
