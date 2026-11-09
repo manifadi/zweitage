@@ -282,6 +282,7 @@ function start(DATA){
   }
   const dropGhost = g => { g.style.transition = 'opacity .26s var(--ease-out)'; g.style.opacity = '0'; setTimeout(() => g.remove(), 280); };
   let uaTransition = false;
+  let pageY = 0;
   let readerOpen = false, readerArticle = null, openFrom = null, pendingFrom = null, navFromApp = false, animTimer = null, finishClose = null;
   const visible = el => { if (!el || !el.isConnected) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight; };
   // Preferred path: View Transitions API (Safari 18+, Chrome 111+). The tapped image and the article hero share
@@ -309,7 +310,9 @@ function start(DATA){
     const from = pendingFrom; pendingFrom = null;
     const fromMedia = mediaOf(from);
     openFrom = fromMedia;
-    const show = () => { reader.hidden = false; readerOpen = true; reader.classList.add('vt'); document.documentElement.classList.add('reading'); };
+    pageY = window.scrollY;
+    // Reset the article scroll only once the reader is visible: on iOS a scrollTop set on a hidden element is ignored
+    const show = () => { reader.hidden = false; readerOpen = true; reader.classList.add('vt'); document.documentElement.classList.add('reading'); reader.scrollTop = 0; };
     if (VT && fromMedia && visible(fromMedia)){
       fromMedia.style.viewTransitionName = 'hero-media';
       const t = document.startViewTransition(async () => {
@@ -345,9 +348,12 @@ function start(DATA){
     document.title = titleFor(viewKey);
     const done = () => {
       finishClose = null; clearTimeout(animTimer);
+      reader.scrollTop = 0;
       reader.hidden = true; reader.innerHTML = ''; reader.classList.remove('vt', 'closing', 'run', 'fading', 'dragging');
       reader.style.transform = ''; reader.style.borderRadius = ''; reader.style.transition = '';
       document.documentElement.classList.remove('reading');
+      // Keep the overview exactly where it was before the article opened
+      if (Math.abs(window.scrollY - pageY) > 1) window.scrollTo(0, pageY);
     };
     if (uaTransition){ uaTransition = false; done(); return; }
     if (VT){
