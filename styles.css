@@ -195,6 +195,8 @@ a.mk-row:hover{background:var(--bg-soft)}
 /* ---------- Reader (article) ---------- */
 .reader{position:fixed;inset:0;z-index:90;background:var(--bg);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;transition:opacity .18s var(--ease)}
 .reader.fading{opacity:0}
+.reader.dragging{overflow:hidden;box-shadow:-18px 0 48px rgba(0,0,0,.18);transform-origin:0 50%}
+html.reading .tabbar{pointer-events:none}
 /* Open/close choreography: page background stays transparent while the image flies; sheet glides; title settles in */
 .reader.opening,.reader.closing{background:transparent;transition:none}
 .reader.opening .a-hero .media,.reader.closing .a-hero .media{visibility:hidden}
@@ -234,7 +236,7 @@ a.mk-row:hover{background:var(--bg-soft)}
 @keyframes vt-fade-in{from{opacity:0}}
 @keyframes vt-fade-out{to{opacity:0}}
 @keyframes vt-sheet-in{from{transform:translateY(100vh)}}
-@keyframes vt-sheet-out{to{transform:translateY(100vh)}}
+@keyframes vt-sheet-out{to{transform:translateY(100vh);opacity:.2}}
 @keyframes vt-rise{from{opacity:0;transform:translateY(14px)}}
 #app.enter > *,.flist.enter{animation:viewIn .42s var(--ease-out) both}
 @keyframes viewIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}

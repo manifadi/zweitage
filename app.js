@@ -281,6 +281,7 @@ function start(DATA){
     Object.assign(g.style, { left: r.left+'px', top: r.top+'px', width: r.width+'px', height: r.height+'px', borderRadius: getComputedStyle(el).borderTopLeftRadius });
   }
   const dropGhost = g => { g.style.transition = 'opacity .26s var(--ease-out)'; g.style.opacity = '0'; setTimeout(() => g.remove(), 280); };
+  let uaTransition = false;
   let readerOpen = false, readerArticle = null, openFrom = null, pendingFrom = null, navFromApp = false, animTimer = null, finishClose = null;
   const visible = el => { if (!el || !el.isConnected) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight; };
   // Preferred path: View Transitions API (Safari 18+, Chrome 111+). The tapped image and the article hero share
@@ -344,9 +345,11 @@ function start(DATA){
     document.title = titleFor(viewKey);
     const done = () => {
       finishClose = null; clearTimeout(animTimer);
-      reader.hidden = true; reader.innerHTML = ''; reader.classList.remove('vt', 'closing', 'run', 'fading');
+      reader.hidden = true; reader.innerHTML = ''; reader.classList.remove('vt', 'closing', 'run', 'fading', 'dragging');
+      reader.style.transform = ''; reader.style.borderRadius = ''; reader.style.transition = '';
       document.documentElement.classList.remove('reading');
     };
+    if (uaTransition){ uaTransition = false; done(); return; }
     if (VT){
       const morph = target && target.isConnected && visible(target);
       const t = document.startViewTransition(() => {
@@ -421,6 +424,57 @@ function start(DATA){
     else showView('start');
   }
 
+  function goBack(){
+    if (navFromApp && history.length > 1){ navFromApp = false; history.back(); }
+    else location.hash = viewKey || 'start';
+  }
+
+  /* ---------- interactive swipe-back inside the reader ----------
+     iOS home-screen apps have no system back gesture, so the article follows the finger to the right (slightly
+     shrinking, page beneath showing through). Released far/fast enough, the close view transition starts from exactly
+     this dragged state, so the image flies from under the finger back into its card; otherwise it springs back. */
+  (function(){
+    let sx = null, sy = 0, dx = 0, mode = null, t0 = 0;
+    const reset = animate => {
+      reader.classList.remove('dragging');
+      if (animate && !reduce){
+        reader.style.transition = 'transform .55s cubic-bezier(.34,1.25,.5,1), border-radius .55s cubic-bezier(.32,.72,0,1)';
+        setTimeout(() => { reader.style.transition = ''; }, 570);
+      }
+      reader.style.transform = ''; reader.style.borderRadius = '';
+    };
+    reader.addEventListener('touchstart', e => {
+      if (!readerOpen || e.touches.length !== 1){ sx = null; return; }
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; dx = 0; mode = null; t0 = performance.now();
+    }, {passive: true});
+    reader.addEventListener('touchmove', e => {
+      if (sx === null || !readerOpen) return;
+      const mx = e.touches[0].clientX - sx, my = e.touches[0].clientY - sy;
+      if (!mode){
+        if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+        mode = (mx > 0 && Math.abs(mx) > Math.abs(my) * 1.3) ? 'swipe' : 'scroll';
+        if (mode === 'swipe'){ reader.classList.add('dragging'); reader.style.transition = 'none'; t0 = performance.now(); sx = e.touches[0].clientX - mx; }
+      }
+      if (mode !== 'swipe') return;
+      e.preventDefault();
+      dx = Math.max(0, mx);
+      const p = Math.min(1, dx / window.innerWidth);
+      reader.style.transform = 'translateX(' + dx + 'px) scale(' + (1 - p * 0.08) + ')';
+      reader.style.borderRadius = Math.min(36, 12 + p * 80) + 'px';
+    }, {passive: false});
+    const end = () => {
+      if (sx === null) return;
+      const wasSwipe = mode === 'swipe';
+      const v = dx / Math.max(1, performance.now() - t0);
+      sx = null; mode = null;
+      if (!wasSwipe) return;
+      if (dx > window.innerWidth * 0.32 || (v > 0.5 && dx > 40)){ reader.classList.remove('dragging'); goBack(); }
+      else reset(true);
+    };
+    reader.addEventListener('touchend', end);
+    reader.addEventListener('touchcancel', () => { if (mode === 'swipe') reset(true); sx = null; mode = null; });
+  })();
+
   /* ---------- interactions ---------- */
   document.addEventListener('click', e => {
     const open = e.target.closest('[data-open]');
@@ -443,11 +497,7 @@ function start(DATA){
       else if (a === 'reset'){ deck = freshDeck(deck.issue); saveDeck(); renderDeck(); }
       return;
     }
-    if (e.target.closest('[data-back]')){
-      if (navFromApp && history.length > 1){ navFromApp = false; history.back(); }
-      else location.hash = viewKey || 'start';
-      return;
-    }
+    if (e.target.closest('[data-back]')){ goBack(); return; }
     if (e.target.closest('[data-copy]')){ shareLink(); return; }
     const ft = e.target.closest('.ftab');
     if (ft){
@@ -486,7 +536,8 @@ function start(DATA){
     catch(e){ toast('Kopieren nicht möglich'); }
   }
 
-  window.addEventListener('hashchange', route);
+  window.addEventListener('popstate', e => { uaTransition = !!e.hasUAVisualTransition; });
+  window.addEventListener('hashchange', () => { route(); uaTransition = false; });
   route();
 
   window.ZT = { isReading: () => readerOpen };
